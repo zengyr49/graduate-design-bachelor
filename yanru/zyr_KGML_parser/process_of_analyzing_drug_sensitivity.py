@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-# @Time    : 2018/5/11 19:34
-# @Author  : ZENG Yanru
-# @Email   : 595438103@qq.com
-# @File    : whole_process.py
-# @Software: PyCharm
-
 import numpy as np
 
 class analyzing_drug_sensitivity:
@@ -466,4 +459,63 @@ class analyzing_drug_sensitivity:
             del data_list
             del target_list
             return data_train,y_train,data_test,y_test
+
+    def zyr_mlp(self,data_train,target_train,data_test,target_test,learning_rate=0.01,epochs=150,batch_size=15,isSave=False,save_in_path='',drug_id=None,optimizer='adam'):
+        #optimizer必须是adam 或者 sgd 二选一
+        #kernel_regularizer必须是类似kernel_regularizer=regularizers.l2(0.01),activity_regularizer=regularizers.l1(0.01)))
+        #save_in_path必须是文件夹，注意加上/
+        from keras.models import Sequential
+        from keras.layers.core import Dense, Dropout, Activation
+        from keras.optimizers import SGD
+        from keras.optimizers import Adam
+        from keras.callbacks import ModelCheckpoint
+        from scipy import stats
+        from keras import regularizers
+
+        inputdim=len(data_train[0])
+
+        model = Sequential()
+        model.add(Dense(inputdim // 2, input_dim=inputdim, init='uniform',
+                        kernel_regularizer=regularizers.l2(0.0001)))  # 输入层，28*28=784，最好附加初始化，用identity
+        model.add(Activation('relu'))  # 激活函数是tanh(后面变成了relu因为对mnist的处理结果会好一些)
+        model.add(
+            Dense(inputdim // 4, kernel_regularizer=regularizers.l2(0.0001), bias_regularizer=regularizers.l1(0.0001)))
+        model.add(Activation('relu'))
+        model.add(
+            Dense(inputdim // 6, kernel_regularizer=regularizers.l2(0.0001), bias_regularizer=regularizers.l1(0.0001)))
+        model.add(Activation('relu'))
+        model.add(Dense(1))  # 输出结果和药物对应的话只是一维的
+        model.add(Activation('linear'))  # 最后一层linear，因为是实际的结果
+
+        if optimizer=='adam':
+            adam = Adam(lr=learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
+            model.compile(loss='mse', optimizer=adam, metrics=["mse"])
+        elif optimizer=='sgd':
+            sgd = SGD(lr=learning_rate)
+            model.compile(loss='mse', optimizer=sgd, metrics=["mse"])
+
+        if isSave:
+            modelname=save_in_path+'model_mlp_fordrug'+str(drug_id)+'.h5'
+            check_test = ModelCheckpoint(modelname, monitor='loss', verbose=0, save_best_only=True,save_weights_only=False, mode='min', period=1)
+            model.fit(data_train, target_train, batch_size=batch_size, epochs=epochs, shuffle=True, verbose=2,callbacks=[check_test])
+            predicted = model.predict(data_test)
+            predicted = predicted.reshape(-1)
+            pearson = stats.pearsonr(predicted, target_test.reshape(-1))
+
+        else:
+            model.fit(data_train, target_train, batch_size=batch_size, epochs=epochs, shuffle=True, verbose=2)
+            predicted = model.predict(data_test)
+            predicted = predicted.reshape(-1)
+            pearson = stats.pearsonr(predicted, target_test.reshape(-1))
+
+        del model
+        return pearson
+
+
+
+
+
+
+
+
 
